@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from storeapp.models import *
+from django.db import transaction
 
 
 ##*********************************************************************************************##
@@ -102,6 +103,47 @@ class CartSerializer(serializers.ModelSerializer):
     def main_total(self,cart:Cart):
         items = cart.items.all()
         return sum([item.quantity * item.product.price for item in items])
+    
+    
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Profile
+        fields=['id','bio','name','image']
+ 
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    product=SimpleProductSerializer(many=False)
+    class Meta:
+        model=OrderItem
+        fields=['id','product','quantity']       
+        
+class OrderSerializer(serializers.ModelSerializer):
+    items=OrderItemSerializer(many=True,read_only=True)
+    class Meta:
+        model=Order
+        fields=['id','placed_at','pending_status','owner','items']
+        
+
+class CreateOrderSerializer(serializers.Serializer):
+    cart_id=serializers.UUIDField()
+    
+    @transaction.atomic
+    def save(self, **kwargs):
+        cart_id=self.validated_data['cart_id']
+        user_id=self.context['user_id']
+        order=Order.objects.create(owner_id=user_id)
+        cartitems=Cartitems.objects.filter(cart_id=cart_id)
+        orderitems=[OrderItem(
+            order=order,product=item.product,quantity=item.quantity)
+        for item in cartitems]
+        OrderItem.objects.bulk_create(orderitems)
+        Cart.objects.get(cart_id=cart_id).delete()
+        return order
+        
+
+
+        
+   
     
 
 ##***************************************************************************************##

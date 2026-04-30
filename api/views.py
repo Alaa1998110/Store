@@ -12,6 +12,8 @@ from .filter import *
 from rest_framework.filters import SearchFilter,OrderingFilter
 from rest_framework.pagination import PageNumberPagination  
 from rest_framework.mixins import CreateModelMixin , RetrieveModelMixin , DestroyModelMixin
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
 
 
 class ProductViewSet(ModelViewSet):
@@ -61,7 +63,40 @@ class CartItemViewSet(ModelViewSet):
     def get_queryset(self):
         return Cartitems.objects.filter(cart_id=self.kwargs['cart_pk'])
     
+class ProfileViewSet(ModelViewSet):
+    queryset=Profile.objects.all()
+    serializer_class=ProfileSerializer
+    parser_classes = (MultiPartParser, FormParser)
     
+    
+    def create(self, request, *args, **kwargs):
+        name=request.data['name']
+        bio=request.data['bio']
+        image=request.data['image']
+        
+        Profile.objects.create(name=name,bio=bio,image=image)
+        return Response('Profile created successfully',status=status.HTTP_201_CREATED)
+    
+    
+class OrderViewSet(ModelViewSet):
+    # queryset=Order.objects.all()
+    # serializer_class=OrderSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method=='POST':
+            return CreateOrderSerializer
+        return OrderSerializer
+    
+    def get_serializer_context(self):
+        return {'user_id': self.request.user.id}
+
+    def get_queryset(self):
+        user=self.request.user
+        if user.is_staff:
+            return Order.objects.all()
+        return Order.objects.filter(owner=user)
+        
 # class ApiProducts(ListCreateAPIView):
 #     queryset=Product.objects.all()
 #     serializer_class=ProductSerializer
